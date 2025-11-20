@@ -1,61 +1,249 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>WatchVIM</title>
+// ======================
+// WatchVIM Frontend (Mux Live + CMS Manifest)
+// ======================
 
-  <!-- Tailwind (for styling used in the JS templates) -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            watchBlack: "#0a0a0a",
-            watchRed: "#e50914",
-            watchGold: "#d4af37"
-          }
-        }
-      }
-    }
-  </script>
+const WATCHVIM_CONFIG = {
+  MANIFEST_URL:
+    "https://hlumlzbtilvrhwxa.public.blob.vercel-storage.com/manifest-hKztYVNCh34OXYsBpUH6xelPgvnyL8.json"
+};
 
-  <style>
-    /* small helpers so things look nice even before JS renders */
-    body { margin:0; background:#0a0a0a; color:#fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-    .skeleton {
-      background: rgba(255,255,255,0.06);
-      border-radius: 12px;
-      animation: pulse 1.4s ease-in-out infinite;
-    }
-    @keyframes pulse { 0%,100% {opacity:.45} 50% {opacity:.9} }
-  </style>
-</head>
+const LS = {
+  lastCatalog: "watchvim_last_catalog",
+  progress: "watchvim_progress" // optional: { [titleId]: { lastTimeSec, durationSec, updatedAt } }
+};
 
-<body>
-  <!-- JS app mounts here -->
-  <div id="app">
-    <!-- Fallback skeleton while loading -->
-    <div class="min-h-screen flex items-center justify-center">
-      <div class="w-full max-w-4xl p-6 space-y-4">
-        <div class="skeleton h-10 w-40"></div>
-        <div class="skeleton aspect-video w-full"></div>
-        <div class="grid grid-cols-5 gap-3">
-          <div class="skeleton aspect-[2/3]"></div>
-          <div class="skeleton aspect-[2/3]"></div>
-          <div class="skeleton aspect-[2/3]"></div>
-          <div class="skeleton aspect-[2/3]"></div>
-          <div class="skeleton aspect-[2/3]"></div>
+const state = {
+  catalog: [],
+  published: [],
+  activeTab: "Movies",
+  searchQuery: "",
+  heroId: null
+};
+
+const TAB_FILTERS = {
+  Movies: (t) => t.type === "films" || t.type === "documentaries",
+  Series: (t) => t.type === "series",
+  Shorts: (t) => t.type === "shorts" || (t.runtimeMins && t.runtimeMins <= 40),
+  Foreign: (t) =>
+    (t.genre || []).some(g => /foreign|international|world/i.test(g)) ||
+    (t.language && !/english/i.test(t.language))
+};
+
+// ---------- Helpers ----------
+const $ = (sel) => document.querySelector(sel);
+
+function esc(str = "") {
+  return String(str).replace(/[&<>"']/g, m => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[m]));
+}
+
+function safeParse(s, fallback){
+  try { return JSON.parse(s); } catch { return fallback; }
+}
+
+function getPoster(t){
+  return t.posterImageDataUrl || t.poster214x321 || t.posterUrl || "";
+}
+function getHero(t){
+  return t.heroImageDataUrl || t.heroImage1920x1080 || t.heroUrl || getPoster(t);
+}
+
+function findTrailerPlaybackId(t){
+  return (
+    t.trailerPlaybackId ||
+    t.trailerMuxPlaybackId ||
+    t.trailerPlaybackID ||
+    t.trailerPlayback ||
+    t.trailer_playback_id ||
+    ""
+  );
+}
+function findContentPlaybackId(t){
+  return (
+    t.contentPlaybackId ||
+    t.muxPlaybackId ||
+    t.playbackId ||
+    t.playbackID ||
+    t.content_playback_id ||
+    ""
+  );
+}
+
+// ---------- Data fetch ----------
+async function fetchCatalogFromManifest(){
+  const manifestRes = await fetch(
+    WATCHVIM_CONFIG.MANIFEST_URL + "?t=" + Date.now(),
+    { cache:"no-store" }
+  );
+  const manifest = await manifestRes.json();
+
+  const catalogRes = await fetch(
+    manifest.latestCatalogUrl + "?t=" + Date.now(),
+    { cache:"no-store" }
+  );
+  return await catalogRes.json();
+}
+
+// ---------- Home shell ----------
+function homeShellHTML(){
+  return `
+    <section class="relative rounded-2xl overflow-hidden border border-white/10 bg-white/5">
+      <div class="aspect-video bg-black">
+        <img id="heroImg" src="" class="w-full h-full object-cover opacity-80" />
+      </div>
+      <div class="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
+      <div class="absolute bottom-0 left-0 p-5 md:p-8 space-y-3 max-w-3xl">
+        <div id="heroMeta" class="text-xs uppercase tracking-widest text-yellow-300/80"></div>
+        <h1 id="heroTitle" class="text-2xl md:text-4xl font-bold">Loading…</h1>
+        <p id="heroSynopsis" class="text-sm md:text-base text-white/80 line-clamp-3"></p>
+        <div class="flex items-center gap-2 pt-2">
+          <button id="heroDetailsBtn" class="px-4 py-2 rounded-xl bg-watchRed font-semibold hover:bg-red-500">
+            View Details
+          </button>
+          <button id="heroTrailerBtn" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20">
+            Watch Trailer
+          </button>
         </div>
       </div>
+    </section>
+
+    <section id="rows" class="space-y-8 mt-8"></section>
+
+    <!-- Trailer Modal Mount -->
+    <div id="trailerModalRoot"></div>
+  `;
+}
+
+// ---------- Hero ----------
+function setHero(title){
+  state.heroId = title.id;
+
+  const heroImg = $("#heroImg");
+  const heroTitle = $("#heroTitle");
+  const heroSynopsis = $("#heroSynopsis");
+  const heroMeta = $("#heroMeta");
+  const detailsBtn = $("#heroDetailsBtn");
+  const trailerBtn = $("#heroTrailerBtn");
+
+  if(heroImg) heroImg.src = getHero(title);
+  if(heroTitle) heroTitle.textContent = title.title || "Untitled";
+  if(heroSynopsis) heroSynopsis.textContent = title.synopsis || "";
+
+  // Meta line: type • genres • year
+  const metaParts = [];
+  if(title.type) metaParts.push(title.type.toUpperCase());
+  const g = (title.genre || []).slice(0,2).join(" • ");
+  if(g) metaParts.push(g);
+  if(title.releaseYear) metaParts.push(title.releaseYear);
+  if(heroMeta) heroMeta.textContent = metaParts.join(" • ");
+
+  if(detailsBtn){
+    detailsBtn.onclick = () => navigateToTitle(title.id);
+  }
+
+  const trailerPlaybackId = findTrailerPlaybackId(title);
+  if(trailerBtn){
+    trailerBtn.disabled = !trailerPlaybackId;
+    trailerBtn.classList.toggle("opacity-50", !trailerPlaybackId);
+    trailerBtn.onclick = () => trailerPlaybackId && openTrailerModal(title);
+  }
+}
+
+// ---------- Tabs + search wiring ----------
+function wireTabs(){
+  ["Movies","Series","Shorts","Foreign"].forEach(tab=>{
+    document.querySelectorAll(`[data-tab="${tab}"]`).forEach(btn=>{
+      btn.onclick = () => {
+        state.activeTab = tab;
+        renderRows();
+      };
+    });
+  });
+}
+
+function wireSearch(){
+  // both desktop + mobile search inputs share placeholder
+  const inputs = document.querySelectorAll(`input[placeholder^="Search"]`);
+  inputs.forEach(inp=>{
+    inp.addEventListener("input", (e)=>{
+      state.searchQuery = e.target.value.trim().toLowerCase();
+      renderRows();
+    });
+  });
+}
+
+// ---------- Continue Watching ----------
+function getContinueWatchingTitles(){
+  const prog = safeParse(localStorage.getItem(LS.progress), {});
+  const items = Object.entries(prog)
+    .map(([id, p]) => ({ id, ...p }))
+    .sort((a,b)=> (b.updatedAt||0)-(a.updatedAt||0))
+    .slice(0,12);
+
+  return items
+    .map(p => state.published.find(t=>t.id===p.id))
+    .filter(Boolean);
+}
+
+// ---------- Rows ----------
+function rowSection(label, titles){
+  if(!titles.length) return "";
+  return `
+    <section class="space-y-2">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-semibold">${esc(label)}</h2>
+        <button class="text-xs text-white/60 hover:text-white">See all</button>
+      </div>
+      <div class="scroll-row flex gap-3 overflow-x-auto pb-2">
+        ${titles.map(posterCard).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function posterCard(t){
+  return `
+    <div class="w-[140px] shrink-0 cursor-pointer group"
+         onclick="window.WatchVIM.navigateToTitle('${t.id}')">
+      <div class="relative w-full aspect-[2/3] rounded-xl overflow-hidden border border-white/10 bg-white/5">
+        <img src="${esc(getPoster(t))}" class="w-full h-full object-cover group-hover:scale-[1.03] transition" />
+      </div>
+      <div class="mt-2 text-sm font-medium line-clamp-2">${esc(t.title || "Untitled")}</div>
+      <div class="text-xs text-white/60">${esc(t.releaseYear || "")}</div>
     </div>
-  </div>
+  `;
+}
 
-  <!-- Mux Player (needed for trailers/content playback) -->
-  <script src="https://cdn.jsdelivr.net/npm/@mux/mux-player" defer></script>
+function renderRows(){
+  const rowsEl = $("#rows");
+  if(!rowsEl) return;
 
-  <!-- Your WatchVIM frontend JS -->
-  <script src="./watchvim-frontend.js"></script>
-</body>
-</html>
+  const tabFilter = TAB_FILTERS[state.activeTab] || (()=>true);
+
+  let filtered = state.published.filter(tabFilter);
+
+  if(state.searchQuery){
+    filtered = filtered.filter(t=>{
+      const hay = [
+        t.title, t.synopsis, ...(t.genre||[]), t.type, t.language
+      ].join(" ").toLowerCase();
+      return hay.includes(state.searchQuery);
+    });
+  }
+
+  // Continue Watching
+  const cw = getContinueWatchingTitles();
+  let html = cw.length ? rowSection("Continue Watching", cw) : "";
+
+  // New on WatchVIM
+  const newest = [...filtered]
+    .sort((a,b)=>new Date(b.updatedAt||0)-new Date(a.updatedAt||0))
+    .slice(0,12);
+  html += rowSection("New on WatchVIM", newest);
+
+  // Genre shelves
+  const byGenre = {};
+  filtered.forEach(t=>{
+    (t.genre || ["Uncategorized"]).forEach(g=>{
+      byGenre[g] = byGenre[g] || [];
