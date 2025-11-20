@@ -80,7 +80,7 @@ function ensureLogoInHeader(){
   const header = document.querySelector("header");
   if(!header) return;
 
-  // Find the brand node: class text-watchGold and text includes WatchVIM
+  // Finds your existing brand node
   const brandNode =
     header.querySelector(".text-watchGold") ||
     [...header.querySelectorAll("div,span,a")].find(el =>
@@ -88,16 +88,12 @@ function ensureLogoInHeader(){
     );
 
   if(!brandNode) return;
-
-  // Avoid double-injecting
   if(brandNode.dataset.logoInjected === "1") return;
 
-  const originalText = (brandNode.textContent || "WatchVIM").trim();
-
   brandNode.innerHTML = `
-    <a href="#/home" class="flex items-center gap-2">
-      <img src="${LOGO_SRC}" alt="WatchVIM Logo" class="h-8 w-auto object-contain"/>
-      <span class="text-xl font-bold text-watchGold">${esc(originalText)}</span>
+    <a href="#/home" class="flex items-center">
+      <img src="${LOGO_SRC}" alt="WatchVIM Logo"
+           class="h-9 w-auto object-contain"/>
     </a>
   `;
   brandNode.dataset.logoInjected = "1";
