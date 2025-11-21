@@ -2,10 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
   <title>WatchVIM</title>
 
-  <!-- Tailwind (for styling used in the JS templates) -->
+  <!-- Favicon / logo -->
+  <link rel="icon" type="image/png" href="./WatchVIM_New_OTT_Logo.png" />
+
+  <!-- Tailwind (CDN) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -18,118 +24,33 @@
           }
         }
       }
-    }
+    };
   </script>
 
   <style>
-    body { margin:0; background:#0a0a0a; color:#fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-    .skeleton {
-      background: rgba(255,255,255,0.06);
-      border-radius: 12px;
-      animation: pulse 1.4s ease-in-out infinite;
+    body {
+      margin: 0;
+      background: #0a0a0a;
+      color: #fff;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
     }
-    @keyframes pulse { 0%,100% {opacity:.45} 50% {opacity:.9} }
-    .scroll-row::-webkit-scrollbar { height: 8px; }
-    .scroll-row::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 999px; }
+    /* Match CMS "card" feel */
+    .card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 0.75rem;
+    }
   </style>
 </head>
 
-<body>
+<body class="bg-watchBlack text-white">
+  <!-- SPA root, JS will render header + pages -->
+  <div id="app" class="min-h-screen"></div>
 
-  <!-- APP ROOT -->
-  <div id="app" class="min-h-screen">
-
-    <!-- TOP NAV -->
-    <header class="sticky top-0 z-40 bg-black/90 backdrop-blur border-b border-white/5 px-4 md:px-8 py-3">
-      <div class="flex items-center justify-between gap-3">
-        <div class="flex items-center gap-3">
-          <div class="text-xl font-bold text-watchGold">WatchVIM</div>
-          <nav class="hidden md:flex items-center gap-1 text-sm text-white/80">
-            <button data-tab="Movies" class="px-3 py-2 rounded-lg hover:bg-white/5">Movies</button>
-            <button data-tab="Series" class="px-3 py-2 rounded-lg hover:bg-white/5">Series</button>
-            <button data-tab="Shorts" class="px-3 py-2 rounded-lg hover:bg-white/5">Shorts</button>
-            <button data-tab="Foreign" class="px-3 py-2 rounded-lg hover:bg-white/5">Foreign</button>
-          </nav>
-        </div>
-
-        <div class="flex-1 max-w-xl hidden md:block">
-          <input class="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm outline-none"
-                 placeholder="Search titles, genres..." />
-        </div>
-
-        <!-- Account placeholders (your JS/auth can replace later) -->
-        <div class="flex items-center gap-2">
-          <button class="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm">Log In</button>
-          <button class="px-3 py-2 rounded-lg bg-watchRed hover:bg-red-500 text-sm font-semibold">Sign Up</button>
-        </div>
-      </div>
-
-      <!-- Mobile search + tabs -->
-      <div class="md:hidden mt-3 flex flex-col gap-2">
-        <input class="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm outline-none"
-               placeholder="Search titles, genres..." />
-        <div class="flex gap-2 text-sm text-white/80">
-          <button data-tab="Movies" class="flex-1 px-3 py-2 rounded-lg bg-white/5">Movies</button>
-          <button data-tab="Series" class="flex-1 px-3 py-2 rounded-lg bg-white/5">Series</button>
-          <button data-tab="Shorts" class="flex-1 px-3 py-2 rounded-lg bg-white/5">Shorts</button>
-          <button data-tab="Foreign" class="flex-1 px-3 py-2 rounded-lg bg-white/5">Foreign</button>
-        </div>
-      </div>
-    </header>
-
-    <main class="px-4 md:px-8 py-6 space-y-8">
-
-      <!-- HERO SECTION (JS will populate) -->
-      <section class="relative rounded-2xl overflow-hidden border border-white/10 bg-white/5">
-        <div class="aspect-video bg-black">
-          <!-- JS replaces src -->
-          <img id="heroImg" src="" class="w-full h-full object-cover opacity-80" />
-        </div>
-        <div class="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
-
-        <div class="absolute bottom-0 left-0 p-5 md:p-8 space-y-3 max-w-3xl">
-          <div id="heroMeta" class="text-xs uppercase tracking-widest text-yellow-300/80 skeleton h-4 w-40"></div>
-          <h1 id="heroTitle" class="text-2xl md:text-4xl font-bold skeleton h-10 w-64">Loading…</h1>
-          <p id="heroSynopsis" class="text-sm md:text-base text-white/80 line-clamp-3 skeleton h-16 w-full"></p>
-
-          <div class="flex items-center gap-2 pt-2">
-            <button id="heroDetailsBtn" class="px-4 py-2 rounded-xl bg-watchRed font-semibold hover:bg-red-500">
-              View Details
-            </button>
-            <button id="heroTrailerBtn" class="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20">
-              Watch Trailer
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <!-- ROWS CONTAINER (JS injects shelves here) -->
-      <section id="rows" class="space-y-8">
-        <!-- Fallback skeleton rows (replaced by JS) -->
-        <section class="space-y-2">
-          <div class="skeleton h-6 w-40"></div>
-          <div class="scroll-row flex gap-3 overflow-x-auto pb-2">
-            <div class="skeleton w-[140px] aspect-[2/3] shrink-0"></div>
-            <div class="skeleton w-[140px] aspect-[2/3] shrink-0"></div>
-            <div class="skeleton w-[140px] aspect-[2/3] shrink-0"></div>
-            <div class="skeleton w-[140px] aspect-[2/3] shrink-0"></div>
-            <div class="skeleton w-[140px] aspect-[2/3] shrink-0"></div>
-          </div>
-        </section>
-      </section>
-
-    </main>
-
-    <footer class="px-4 md:px-8 py-8 border-t border-white/5 text-xs text-white/50">
-      © 2025 WatchVIM. All rights reserved.
-    </footer>
-
-  </div>
-
-  <!-- Mux Player (needed for trailers/content playback) -->
+  <!-- Mux Player for playback -->
   <script src="https://cdn.jsdelivr.net/npm/@mux/mux-player" defer></script>
 
-  <!-- Your WatchVIM frontend JS -->
+  <!-- Frontend app -->
   <script src="./watchvim-frontend.js"></script>
 </body>
 </html>
