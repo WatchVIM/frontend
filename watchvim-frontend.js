@@ -10,7 +10,7 @@ const LOGO_SRC = "./vim-logo.png";
 
 const WATCHVIM_CONFIG = {
   MANIFEST_URL:
-    "https://hlumlzbtilvrhwxa.public.blob.vercel-storage.com/catalog-1763675698688-SgSkWr5FSh9yVsujIcl2I7vP7y9DBZ.json"
+    "https://hlumlzbtilvrhwxa.public.blob.vercel-storage.com/manifest-ZqamBRZ28mLUoBSbgVdDfkgw9I9LII.json"
 };
 
 const LS = {
